@@ -42,7 +42,12 @@ module LLVM.Untyped.Core
     isFunctionVarArg,
     getReturnType,
     countParamTypes,
-    getParamTypes
+    getParamTypes,
+
+    -- * Miscellanious Types
+    voidType,
+    labelType,
+    opaqueType
     )
 where
 
@@ -171,3 +176,12 @@ getParamTypes functionType'@(Type functionType) =
                        free typeArray
                        return list
         return $ map Type typeList
+
+voidType :: Type
+voidType = Type L.voidType
+
+labelType :: Type
+labelType = Type L.labelType
+
+opaqueType :: Type
+opaqueType = Type L.opaqueType
