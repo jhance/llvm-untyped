@@ -30,6 +30,13 @@ module LLVM.Untyped.Core
     int32Type,
     integerType,
     getIntTypeWidth,
+    
+    -- * Float Types
+    floatType,
+    doubleType,
+    x86FP80Type,
+    fp128Type,
+    ppcFP128Type
     )
 where
 
@@ -102,3 +109,18 @@ integerType = Type . L.integerType . fromIntegral
 
 getIntTypeWidth :: Type -> LLVM Int
 getIntTypeWidth (Type typeRef) = LLVM $ fromIntegral <$> L.getIntTypeWidth typeRef
+
+floatType :: Type
+floatType = Type L.floatType
+
+doubleType :: Type
+doubleType = Type L.doubleType
+
+x86FP80Type :: Type
+x86FP80Type = Type L.x86FP80Type
+
+fp128Type :: Type
+fp128Type = Type L.fp128Type
+
+ppcFP128Type :: Type
+ppcFP128Type = Type L.ppcFP128Type
