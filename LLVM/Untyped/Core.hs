@@ -1,7 +1,8 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving, DeriveDataTypeable #-}
 module LLVM.Untyped.Core
     (
-    -- * Core Monad LLVM,
+    -- * Core Monad
+    LLVM
 
     -- * Modules
     Module,
