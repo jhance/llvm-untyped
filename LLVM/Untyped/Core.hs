@@ -2,7 +2,7 @@
 module LLVM.Untyped.Core
     (
     -- * Core Monad
-    LLVM
+    LLVM,
 
     -- * Modules
     Module,
@@ -70,14 +70,30 @@ module LLVM.Untyped.Core
     createTypeHandle,
     refineType,
     resolveTypeHandle,
-    disposeTypeHandle
+    disposeTypeHandle,
+
+    -- * Values
+    Value,
+    typeOf,
+    getValueName,
+    setValueName,
+    dumpValue,
+
+    -- ** Constants
+    constNull,
+    constAllOnes,
+    getUndef,
+    isConstant,
+    isNull,
+    isUndef
     )
 where
 
 import Control.Applicative
-import Data.Typeable
+import Data.Typeable (Typeable)
 import Foreign hiding (unsafePerformIO)
 import Foreign.C.String
+import Foreign.C.Types
 import System.IO.Unsafe (unsafePerformIO)
 import qualified LLVM.FFI.Core as L
 
@@ -93,6 +109,13 @@ newtype Type = Type { untype :: L.TypeRef }
 
 newtype TypeHandle = TypeHandle L.TypeHandleRef
 
+newtype Value = Value { unvalue :: L.ValueRef }
+
+intToBool :: CInt -> Bool
+intToBool i = case i of
+                0 -> False
+                _ -> True
+
 -- | Create a new module.
 moduleCreateWithName :: String -- ^ Name of module
                         -> LLVM Module
@@ -102,13 +125,13 @@ disposeModule :: Module -> LLVM ()
 disposeModule (Module moduleRef) = LLVM $ L.disposeModule moduleRef
                                       
 getDataLayout :: Module -> LLVM String
-getDataLayout (Module moduleRef) = LLVM $ L.getDataLayout moduleRef >>= peekCAString
+getDataLayout (Module moduleRef) = LLVM $ L.getDataLayout moduleRef >>= peekCString
 
 setDataLayout :: Module -> String -> LLVM ()
 setDataLayout (Module moduleRef) layout = LLVM $ withCString layout (L.setDataLayout moduleRef)
 
 getTarget :: Module -> LLVM String
-getTarget (Module moduleRef) = LLVM $ L.getTarget moduleRef >>= peekCAString
+getTarget (Module moduleRef) = LLVM $ L.getTarget moduleRef >>= peekCString
 
 setTarget :: Module -> String -> LLVM ()
 setTarget (Module moduleRef) target = LLVM $ withCString target (L.setTarget moduleRef)
@@ -262,9 +285,7 @@ getStructElementTypes structType'@(Type structType) = LLVM $ do
     return $ map Type typeList
 
 isPackedStruct :: Type -> Bool
-isPackedStruct (Type typeRef) = case L.isPackedStruct typeRef of
-                                    0 -> False
-                                    _ -> True
+isPackedStruct (Type typeRef) = intToBool $ L.isPackedStruct typeRef
 
 createTypeHandle :: Type -> LLVM TypeHandle
 createTypeHandle (Type typeRef) = LLVM $ TypeHandle <$> L.createTypeHandle typeRef
@@ -278,3 +299,33 @@ resolveTypeHandle (TypeHandle handle) = LLVM $ Type <$> L.resolveTypeHandle hand
 
 disposeTypeHandle :: TypeHandle -> LLVM ()
 disposeTypeHandle (TypeHandle handle) = LLVM $ L.disposeTypeHandle handle
+
+typeOf :: Value -> LLVM Type
+typeOf (Value value) = LLVM $ Type <$> L.typeOf value
+
+getValueName :: Value -> LLVM String
+getValueName (Value value) = LLVM $ L.getValueName value >>= peekCString
+
+setValueName :: Value -> String -> LLVM ()
+setValueName (Value value) name = LLVM $ withCString name (L.setValueName value)
+
+dumpValue :: Value -> LLVM ()
+dumpValue (Value value) = LLVM $ L.dumpValue value
+
+constNull :: Type -> Value
+constNull (Type t) = Value $ L.constNull t
+
+constAllOnes :: Type -> Value
+constAllOnes (Type t) = Value $ L.constAllOnes t
+
+getUndef :: Type -> Value
+getUndef (Type t) = Value $ L.getUndef t
+
+isConstant :: Value -> LLVM Bool
+isConstant (Value value) = LLVM $ intToBool <$> L.isConstant value
+
+isNull :: Value -> LLVM Bool
+isNull (Value value) = LLVM $ intToBool <$> L.isNull value
+
+isUndef :: Value -> LLVM Bool
+isUndef (Value value) = LLVM $ intToBool <$> L.isUndef value
