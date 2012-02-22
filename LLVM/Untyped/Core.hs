@@ -62,7 +62,14 @@ module LLVM.Untyped.Core
     structType,
     countStructElementTypes,
     getStructElementTypes,
-    isPackedStruct
+    isPackedStruct,
+
+    -- * Type Handles
+    TypeHandle,
+    createTypeHandle,
+    refineType,
+    resolveTypeHandle,
+    disposeTypeHandle
     )
 where
 
@@ -82,6 +89,8 @@ newtype ModuleProvider = ModuleProvider L.ModuleProviderRef
 
 newtype Type = Type { untype :: L.TypeRef }
     deriving Typeable
+
+newtype TypeHandle = TypeHandle L.TypeHandleRef
 
 -- | Create a new module.
 moduleCreateWithName :: String -- ^ Name of module
@@ -255,3 +264,16 @@ isPackedStruct :: Type -> Bool
 isPackedStruct (Type typeRef) = case L.isPackedStruct typeRef of
                                     0 -> False
                                     _ -> True
+
+createTypeHandle :: Type -> LLVM TypeHandle
+createTypeHandle (Type typeRef) = LLVM $ TypeHandle <$> L.createTypeHandle typeRef
+
+-- I don't really know what this does
+refineType :: Type -> Type -> LLVM ()
+refineType (Type t1) (Type t2) = LLVM $ L.refineType t1 t2
+
+resolveTypeHandle :: TypeHandle -> LLVM Type
+resolveTypeHandle (TypeHandle handle) = LLVM $ Type <$> L.resolveTypeHandle handle
+
+disposeTypeHandle :: TypeHandle -> LLVM ()
+disposeTypeHandle (TypeHandle handle) = LLVM $ L.disposeTypeHandle handle
