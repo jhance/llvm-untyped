@@ -22,7 +22,7 @@ module LLVM.Untyped.Core
     deleteTypeName,
     getTypeKind,
     
-    -- * Integer Types
+    -- ** Integer Types
     int1Type,
     int8Type,
     int16Type,
@@ -30,24 +30,39 @@ module LLVM.Untyped.Core
     integerType,
     getIntTypeWidth,
     
-    -- * Float Types
+    -- ** Float Types
     floatType,
     doubleType,
     x86FP80Type,
     fp128Type,
     ppcFP128Type,
 
-    -- * Function Types
+    -- ** Function Types
     functionType,
     isFunctionVarArg,
     getReturnType,
     countParamTypes,
     getParamTypes,
 
-    -- * Miscellanious Types
+    -- ** Miscellanious Types
     voidType,
     labelType,
-    opaqueType
+    opaqueType,
+    
+    -- ** Array Types, Pointer Types, Vector Types
+    arrayType,
+    pointerType,
+    vectorType,
+    getElementType,
+    getArrayLength,
+    getPointerAddressSpace,
+    getVectorSize,
+
+    -- ** Struct Types
+    structType,
+    countStructElementTypes,
+    getStructElementTypes,
+    isPackedStruct
     )
 where
 
@@ -65,7 +80,7 @@ newtype Module = Module L.ModuleRef
 
 newtype ModuleProvider = ModuleProvider L.ModuleProviderRef
 
-newtype Type = Type L.TypeRef
+newtype Type = Type { untype :: L.TypeRef }
     deriving Typeable
 
 -- | Create a new module.
@@ -144,8 +159,7 @@ functionType :: Type -- ^ Return Type
                 -> Bool -- ^ Is Var Arg?
                 -> Type
 functionType (Type retType) argTypes isVarArg = unsafePerformIO $ do
-    let untype (Type t) = t
-        argTypes' = map untype argTypes
+    let argTypes' = map untype argTypes
         argCount = fromIntegral . length $ argTypes'
         isVarArg' = fromIntegral $ case isVarArg of
             True -> 1 -- Is this right?
@@ -166,15 +180,15 @@ getReturnType (Type typeRef) = LLVM $ Type <$> L.getReturnType typeRef
 countParamTypes :: Type -> LLVM Int
 countParamTypes (Type typeRef) = LLVM $ fromIntegral <$> L.countParamTypes typeRef
 
+-- This function in particular is probably safe to unsafePerformIO on.
 getParamTypes :: Type -> LLVM [Type]
 getParamTypes functionType'@(Type functionType) = 
     do numParams <- countParamTypes functionType'
        LLVM $ do
         typeArray <- mallocArray numParams
         L.getParamTypes functionType typeArray
-        typeList <- do list <- peekArray numParams typeArray
-                       free typeArray
-                       return list
+        typeList <- peekArray numParams typeArray
+        free typeArray
         return $ map Type typeList
 
 voidType :: Type
@@ -185,3 +199,59 @@ labelType = Type L.labelType
 
 opaqueType :: Type
 opaqueType = Type L.opaqueType
+
+arrayType :: Type -- ^ Element type
+             -> Int -- ^ Number of elements
+             -> Type
+arrayType (Type elementType) n = Type $ L.arrayType elementType (fromIntegral n)
+
+pointerType :: Type -- ^ Element type
+               -> Int -- ^ Address space
+               -> Type
+pointerType (Type elementType) n = Type $ L.pointerType elementType (fromIntegral n)
+
+vectorType :: Type -- ^ Element type
+              -> Int -- ^ Number of elements
+              -> Type
+vectorType (Type elementType) n = Type $ L.vectorType elementType (fromIntegral n)
+
+-- | Get the element type of a sequential type, or the type of an individual element.
+getElementType :: Type -> LLVM Type
+getElementType (Type typeRef) = LLVM $ Type <$> L.getElementType typeRef
+
+getArrayLength :: Type -> LLVM Int
+getArrayLength (Type typeRef) = LLVM $ fromIntegral <$> L.getArrayLength typeRef
+
+getPointerAddressSpace :: Type -> LLVM Int
+getPointerAddressSpace (Type typeRef) = LLVM $ fromIntegral <$> L.getPointerAddressSpace typeRef
+
+getVectorSize :: Type -> LLVM Int
+getVectorSize (Type typeRef) = LLVM $ fromIntegral <$> L.getVectorSize typeRef
+
+structType :: [Type] -- ^ List of Types that the struct contains
+              -> Bool -- ^ Is the struct packed?
+              -> Type
+structType typeList packed = unsafePerformIO $
+    let typeRefList = map untype typeList
+        packed' = fromIntegral $ case packed of
+            True -> 1
+            False -> 0
+        len = fromIntegral $ length typeRefList
+    in Type <$> (withArray typeRefList $ do \typeRefPtr -> return $ L.structType typeRefPtr len packed')
+
+countStructElementTypes :: Type -> Int
+countStructElementTypes (Type typeRef) = fromIntegral $ L.countStructElementTypes typeRef
+
+getStructElementTypes :: Type -> LLVM [Type]
+getStructElementTypes structType'@(Type structType) = LLVM $ do
+    let count = countStructElementTypes structType'
+    typeArray <- mallocArray count
+    L.getStructElementTypes structType typeArray
+    typeList <- peekArray count typeArray
+    free typeArray
+    return $ map Type typeList
+
+isPackedStruct :: Type -> Bool
+isPackedStruct (Type typeRef) = case L.isPackedStruct typeRef of
+                                    0 -> False
+                                    _ -> True
