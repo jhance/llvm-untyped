@@ -1,8 +1,10 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module LLVM.Untyped.Core
     (
+    -- * Core Monad
     LLVM,
 
+    -- * Modules
     Module
     )
 where
@@ -24,3 +26,12 @@ moduleCreateWithName name = LLVM $ Module <$> withCString name L.moduleCreateWit
                                       
 getDataLayout :: Module -> LLVM String
 getDataLayout (Module moduleRef) = LLVM $ L.getDataLayout moduleRef >>= peekCAString
+
+setDataLayout :: Module -> String -> LLVM ()
+setDataLayout (Module moduleRef) layout = LLVM $ withCString layout L.setDataLayout moduleRef
+
+getTarget :: Module -> LLVM String
+getTarget (Module moduleRef) = LLVM $ L.getTarget moduleRef >>= peekCAString
+
+setTarget :: Module -> String -> LLVM ()
+setTarget (Module moduleRef) target = LLVM $ withCString target L.setTarget moduleRef
