@@ -85,7 +85,13 @@ module LLVM.Untyped.Core
     getUndef,
     isConstant,
     isNull,
-    isUndef
+    isUndef,
+
+    -- * Linkage
+    Linkage,
+    getLinkage,
+    setLinkage
+
     )
 where
 
@@ -95,6 +101,7 @@ import Foreign hiding (unsafePerformIO)
 import Foreign.C.String
 import Foreign.C.Types
 import System.IO.Unsafe (unsafePerformIO)
+import LLVM.FFI.Core (Linkage, Visibility)
 import qualified LLVM.FFI.Core as L
 
 newtype LLVM a = LLVM (IO a)
@@ -329,3 +336,9 @@ isNull (Value value) = LLVM $ intToBool <$> L.isNull value
 
 isUndef :: Value -> LLVM Bool
 isUndef (Value value) = LLVM $ intToBool <$> L.isUndef value
+
+getLinkage :: Value -> LLVM Linkage
+getLinkage (Value value) = LLVM $ L.toLinkage <$> L.getLinkage value
+
+setLinkage :: Value -> Linkage -> LLVM ()
+setLinkage (Value value) linkage = LLVM $ L.setLinkage value (L.fromLinkage linkage)
