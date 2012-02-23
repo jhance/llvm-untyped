@@ -143,7 +143,18 @@ module LLVM.Untyped.Core
     getFunctionCallConv,
     setFunctionCallConv,
     getInstructionCallConv,
-    setInstructionCallConv
+    setInstructionCallConv,
+
+    -- * Instruction Building
+    createBuilder,
+    positionBuilder,
+    positionBefore,
+    positionAtEnd,
+    getFirstInstruction,
+    getNextInstruction,
+    getPreviousInstruction,
+    getLastInstruction,
+    getInstructionParent
     )
 where
 
@@ -158,6 +169,10 @@ import qualified LLVM.FFI.Core as L
 
 newtype LLVM a = LLVM (IO a)
     deriving (Applicative, Functor, Monad)
+
+newtype BasicBlock = BasicBlock L.BasicBlockRef
+
+newtype Builder = Builder L.BuilderRef
 
 newtype Module = Module L.ModuleRef
 
@@ -544,3 +559,88 @@ getInstructionCallConv (Value value) = LLVM $ L.toCallingConvention <$> L.getIns
 
 setInstructionCallConv :: Value -> CallingConvention -> LLVM ()
 setInstructionCallConv (Value value) cc = LLVM $ L.setInstructionCallConv value (L.fromCallingConvention cc)
+
+constInt :: Type -> Integer -> Int -> Value
+constInt (Type t) i1 i2 = Value $ L.constInt t (fromIntegral i1) (fromIntegral i2)
+
+constReal :: Type -> Double -> Value
+constReal (Type t) d = Value $ L.constReal t (realToFrac d)
+
+-- I don't feel like doing composite consts right now
+
+-- Constant Expressions
+
+binaryHelper :: (L.ValueRef -> L.ValueRef -> L.ValueRef) -> Value -> Value -> Value
+binaryHelper f (Value v1) (Value v2) = Value $ f v1 v2
+
+sizeOf :: Type -> LLVM Value
+sizeOf (Type t) = LLVM $ Value <$> L.sizeOf t
+
+constNeg :: Value -> Value
+constNeg (Value v) = Value $ L.constNeg v
+
+constNot :: Value -> Value
+constNot (Value v) = Value $ L.constNot v
+
+constAdd :: Value -> Value -> Value
+constAdd = binaryHelper L.constAdd
+
+constSub :: Value -> Value -> Value
+constSub = binaryHelper L.constSub
+
+constMul :: Value -> Value -> Value
+constMul = binaryHelper L.constMul
+
+constExactSDiv :: Value -> Value -> LLVM Value
+constExactSDiv (Value v1) (Value v2) = LLVM $ Value <$> L.constExactSDiv v1 v2
+
+constFAdd :: Value -> Value -> Value
+constFAdd = binaryHelper L.constFAdd
+
+constFNeg :: Value -> Value
+constFNeg (Value v) = Value $ L.constFNeg v
+
+constFPCast :: Value -> Type -> Value
+constFPCast (Value v) (Type t) = Value $ L.constFPCast v t
+
+constFSub :: Value -> Value -> Value
+constFSub = binaryHelper L.constFSub
+
+constUDiv :: Value -> Value -> Value
+constUDiv = binaryHelper L.constUDiv
+
+constSDiv :: Value -> Value -> Value
+constSDiv = binaryHelper L.constSDiv
+
+constFDiv :: Value -> Value -> Value
+constFDiv = binaryHelper L.constFDiv
+
+-- AHH SO MANY!!!!! I'll do the rest later...
+-- BUILDER TIME! This stuff is actually important...
+
+createBuilder :: LLVM Builder
+createBuilder = LLVM $ Builder <$> L.createBuilder
+
+positionBuilder :: Builder -> BasicBlock -> Value -> LLVM ()
+positionBuilder (Builder b) (BasicBlock block) (Value v) = LLVM $ L.positionBuilder b block v
+
+positionBefore :: Builder -> Value -> LLVM ()
+positionBefore (Builder b) (Value v) = LLVM $ L.positionBefore b v
+
+positionAtEnd :: Builder -> BasicBlock -> LLVM ()
+positionAtEnd (Builder b) (BasicBlock block) = LLVM $ L.positionAtEnd b block
+
+getFirstInstruction :: BasicBlock -> LLVM Value
+getFirstInstruction (BasicBlock block) = LLVM $ Value <$> L.getFirstInstruction block
+
+getLastInstruction :: BasicBlock -> LLVM Value
+getLastInstruction (BasicBlock block) = LLVM $ Value <$> L.getLastInstruction block
+
+getNextInstruction :: Value -> LLVM Value
+getNextInstruction (Value v) = LLVM $ Value <$> L.getNextInstruction v
+
+getPreviousInstruction :: Value -> LLVM Value
+getPreviousInstruction (Value v) = LLVM $ Value <$> L.getPreviousInstruction v
+
+getInstructionParent :: Value -> LLVM BasicBlock
+getInstructionParent (Value v) = LLVM $ BasicBlock <$> L.getInstructionParent v
