@@ -87,19 +87,35 @@ module LLVM.Untyped.Core
     isNull,
     isUndef,
 
-    -- * Linkage
+    -- ** Linkage
     Linkage,
     getLinkage,
     setLinkage,
 
-    -- * Visibility, Sections, and Alignment
+    -- ** Visibility, Sections, and Alignment
     getVisibility,
     setVisibility,
     isDeclaration,
     getSection,
     setSection,
     getAlignment,
-    setAlignment
+    setAlignment,
+
+    -- ** Globals
+    addGlobal,
+    getNamedGlobal,
+    deleteGlobal,
+    getInitializer,
+    setInitializer,
+    isThreadLocal,
+    setThreadLocal,
+    isGlobalConstant,
+    setGlobalConstant,
+    getFirstGlobal,
+    getNextGlobal,
+    getPreviousGlobal,
+    getLastGlobal,
+    getGlobalParent
     )
 where
 
@@ -130,6 +146,10 @@ intToBool :: CInt -> Bool
 intToBool i = case i of
                 0 -> False
                 _ -> True
+
+boolToInt :: Bool -> CInt
+boolToInt True = 1
+boolToInt False = 0
 
 -- | Create a new module.
 moduleCreateWithName :: String -- ^ Name of module
@@ -371,3 +391,49 @@ getAlignment (Value value) = LLVM $ fromIntegral <$> L.getAlignment value
 
 setAlignment :: Value -> Int -> LLVM ()
 setAlignment (Value value) a = LLVM $ L.setAlignment value (fromIntegral a)
+
+addGlobal :: Module -> Type -> String -> LLVM Value
+addGlobal (Module mod) (Type t) name = LLVM $ Value <$> withCString name (L.addGlobal mod t)
+
+getNamedGlobal :: Module -> String -> LLVM Value
+getNamedGlobal (Module mod) name = LLVM $ Value <$> withCString name (L.getNamedGlobal mod)
+
+deleteGlobal :: Value -> LLVM ()
+deleteGlobal (Value value) = LLVM $ L.deleteGlobal value
+
+getInitializer :: Value -> LLVM Value
+getInitializer (Value value) = LLVM $ Value <$> L.getInitializer value
+
+-- | Need to look up which argument is which...
+-- The implementation of my code is correct though.
+setInitializer :: Value
+                  -> Value
+                  -> LLVM ()
+setInitializer (Value v1) (Value v2) = LLVM $ L.setInitializer v1 v2
+
+isThreadLocal :: Value -> LLVM Bool
+isThreadLocal (Value value) = LLVM $ intToBool <$> L.isThreadLocal value
+
+setThreadLocal :: Value -> Bool -> LLVM ()
+setThreadLocal (Value value) l = LLVM $ L.setThreadLocal value (boolToInt l)
+
+isGlobalConstant :: Value -> LLVM Bool
+isGlobalConstant (Value value) = LLVM $ intToBool <$> L.isGlobalConstant value
+
+setGlobalConstant :: Value -> Bool -> LLVM ()
+setGlobalConstant (Value value) g = LLVM $ L.setGlobalConstant value (boolToInt g)
+
+getFirstGlobal :: Module -> LLVM Value
+getFirstGlobal (Module mod) = LLVM $ Value <$> L.getFirstGlobal mod
+
+getLastGlobal :: Module -> LLVM Value
+getLastGlobal (Module mod) = LLVM $ Value <$> L.getLastGlobal mod
+
+getNextGlobal :: Value -> LLVM Value
+getNextGlobal (Value value) = LLVM $ Value <$> L.getNextGlobal value
+
+getPreviousGlobal :: Value -> LLVM Value
+getPreviousGlobal (Value value) = LLVM $ Value <$> L.getPreviousGlobal value
+
+getGlobalParent :: Value -> LLVM Module
+getGlobalParent (Value value) = LLVM $ Module <$> L.getGlobalParent value
