@@ -90,8 +90,16 @@ module LLVM.Untyped.Core
     -- * Linkage
     Linkage,
     getLinkage,
-    setLinkage
+    setLinkage,
 
+    -- * Visibility, Sections, and Alignment
+    getVisibility,
+    setVisibility,
+    isDeclaration,
+    getSection,
+    setSection,
+    getAlignment,
+    setAlignment
     )
 where
 
@@ -342,3 +350,24 @@ getLinkage (Value value) = LLVM $ L.toLinkage <$> L.getLinkage value
 
 setLinkage :: Value -> Linkage -> LLVM ()
 setLinkage (Value value) linkage = LLVM $ L.setLinkage value (L.fromLinkage linkage)
+
+getVisibility :: Value -> LLVM Visibility
+getVisibility (Value value) = LLVM $ L.toVisibility <$> L.getVisibility value
+
+setVisibility :: Value -> Visibility -> LLVM ()
+setVisibility (Value value) vis = LLVM $ L.setVisibility value (L.fromVisibility vis)
+
+isDeclaration :: Value -> LLVM Bool
+isDeclaration (Value value) = LLVM $ intToBool <$> L.isDeclaration value
+
+getSection :: Value -> LLVM String
+getSection (Value value) = LLVM $ L.getSection value >>= peekCString
+
+setSection :: Value -> String -> IO ()
+setSection (Value value) name = withCString name (L.setSection value)
+
+getAlignment :: Value -> LLVM Int
+getAlignment (Value value) = LLVM $ fromIntegral <$> L.getAlignment value
+
+setAlignment :: Value -> Int -> LLVM ()
+setAlignment (Value value) a = LLVM $ L.setAlignment value (fromIntegral a)
