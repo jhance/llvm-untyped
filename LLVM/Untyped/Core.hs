@@ -115,7 +115,28 @@ module LLVM.Untyped.Core
     getNextGlobal,
     getPreviousGlobal,
     getLastGlobal,
-    getGlobalParent
+    getGlobalParent,
+
+    -- ** Functions
+    addFunction,
+    getNamedFunction,
+    deleteFunction,
+    countParams,
+    getParams,
+    getIntrinsicID,
+    getGC,
+    setGC,
+    getFirstFunction,
+    getNextFunction,
+    getPreviousFunction,
+    getLastFunction,
+    getFirstParam,
+    getNextParam,
+    getPreviousParam,
+    getLastParam,
+    getParamParent,
+    isTailCall,
+    setTailCall
     )
 where
 
@@ -437,3 +458,70 @@ getPreviousGlobal (Value value) = LLVM $ Value <$> L.getPreviousGlobal value
 
 getGlobalParent :: Value -> LLVM Module
 getGlobalParent (Value value) = LLVM $ Module <$> L.getGlobalParent value
+
+addFunction :: Module -> String -> Type -> LLVM Value
+addFunction (Module mod) name (Type t) = LLVM $ Value <$> withCString name
+    (\name' -> L.addFunction mod name' t)
+
+getNamedFunction :: Module -> String -> LLVM Value
+getNamedFunction (Module mod) name = LLVM $ Value <$> withCString name (L.getNamedFunction mod)
+
+deleteFunction :: Value -> LLVM ()
+deleteFunction (Value value) = LLVM $ L.deleteFunction value
+
+countParams :: Value -> Int
+countParams (Value value) = fromIntegral $ L.countParams value
+
+getParams :: Value -> LLVM [Value]
+getParams value'@(Value value) = LLVM $ do
+    let n = countParams value'
+    valueArray <- mallocArray n
+    L.getParams value valueArray
+    valueList <- peekArray n valueArray
+    free valueArray
+    return $ map Value valueList
+
+getParam :: Value -> Int -> Value
+getParam (Value value) offset = Value $ L.getParam value (fromIntegral offset)
+
+getIntrinsicID :: Value -> Int
+getIntrinsicID (Value value) = fromIntegral $ L.getIntrinsicID value
+
+getGC :: Value -> LLVM String
+getGC (Value value) = LLVM $ L.getGC value >>= peekCString
+
+setGC :: Value -> String -> LLVM ()
+setGC (Value value) gc = LLVM $ withCString gc (L.setGC value)
+
+getFirstFunction :: Module -> LLVM Value
+getFirstFunction (Module mod) = LLVM $ Value <$> L.getFirstFunction mod
+
+getLastFunction :: Module -> LLVM Value
+getLastFunction (Module mod) = LLVM $ Value <$> L.getLastFunction mod
+
+getNextFunction :: Value -> LLVM Value
+getNextFunction (Value value) = LLVM $ Value <$> L.getNextFunction value
+
+getPreviousFunction :: Value -> LLVM Value
+getPreviousFunction (Value value) = LLVM $ Value <$> L.getPreviousFunction value
+
+getFirstParam :: Value -> LLVM Value
+getFirstParam (Value value) = LLVM $ Value <$> L.getFirstParam value
+
+getLastParam :: Value -> LLVM Value
+getLastParam (Value value) = LLVM $ Value <$> L.getLastParam value
+
+getNextParam :: Value -> LLVM Value
+getNextParam (Value value) = LLVM $ Value <$> L.getNextParam value
+
+getPreviousParam :: Value -> LLVM Value
+getPreviousParam (Value value) = LLVM $ Value <$> L.getPreviousParam value
+
+getParamParent :: Value -> LLVM Value
+getParamParent (Value value) = LLVM $ Value <$> L.getParamParent value
+
+isTailCall :: Value -> LLVM Bool
+isTailCall (Value value) = LLVM $ intToBool <$> L.isTailCall value
+
+setTailCall :: Value -> Bool -> LLVM ()
+setTailCall (Value value) t = LLVM $ L.setTailCall value (boolToInt t)
