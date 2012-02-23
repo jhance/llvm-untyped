@@ -136,7 +136,14 @@ module LLVM.Untyped.Core
     getLastParam,
     getParamParent,
     isTailCall,
-    setTailCall
+    setTailCall,
+
+    -- ** Calling Conventions
+    CallingConvention,
+    getFunctionCallConv,
+    setFunctionCallConv,
+    getInstructionCallConv,
+    setInstructionCallConv
     )
 where
 
@@ -146,7 +153,7 @@ import Foreign hiding (unsafePerformIO)
 import Foreign.C.String
 import Foreign.C.Types
 import System.IO.Unsafe (unsafePerformIO)
-import LLVM.FFI.Core (Linkage, Visibility)
+import LLVM.FFI.Core (CallingConvention, Linkage, Visibility)
 import qualified LLVM.FFI.Core as L
 
 newtype LLVM a = LLVM (IO a)
@@ -525,3 +532,15 @@ isTailCall (Value value) = LLVM $ intToBool <$> L.isTailCall value
 
 setTailCall :: Value -> Bool -> LLVM ()
 setTailCall (Value value) t = LLVM $ L.setTailCall value (boolToInt t)
+
+getFunctionCallConv :: Value -> LLVM CallingConvention
+getFunctionCallConv (Value value) = LLVM $ L.toCallingConvention <$> L.getFunctionCallConv value
+
+setFunctionCallConv :: Value -> CallingConvention -> LLVM ()
+setFunctionCallConv (Value value) cc = LLVM $ L.setFunctionCallConv value (L.fromCallingConvention cc)
+
+getInstructionCallConv :: Value -> LLVM CallingConvention
+getInstructionCallConv (Value value) = LLVM $ L.toCallingConvention <$> L.getInstructionCallConv value
+
+setInstructionCallConv :: Value -> CallingConvention -> LLVM ()
+setInstructionCallConv (Value value) cc = LLVM $ L.setInstructionCallConv value (L.fromCallingConvention cc)
