@@ -145,7 +145,26 @@ module LLVM.Untyped.Core
     getInstructionCallConv,
     setInstructionCallConv,
 
+    -- * Basic Blocks
+    BasicBlock,
+    basicBlockAsValue,
+    valueIsBasicBlock,
+    valueAsBasicBlock,
+    countBasicBlocks,
+    getBasicBlocks,
+    getEntryBasicBlock,
+    appendBasicBlock,
+    insertBasicBlock,
+    deleteBasicBlock,
+    getFirstBasicBlock,
+    getNextBasicBlock,
+    getPreviousBasicBlock,
+    getLastBasicBlock,
+    getInsertBlock,
+    getBasicBlockParent,
+
     -- * Instruction Building
+    Builder,
     createBuilder,
     positionBuilder,
     positionBefore,
@@ -154,7 +173,33 @@ module LLVM.Untyped.Core
     getNextInstruction,
     getPreviousInstruction,
     getLastInstruction,
-    getInstructionParent
+    getInstructionParent,
+
+    -- ** Terminators
+    buildRetVoid,
+    buildRet,
+    buildBr,
+    --buildIndirectBr,
+    buildCondBr,
+    --buildSwitch,
+    --buildInvoke,
+    buildUnwind,
+    buildUnreachable,
+
+    -- ** Arithmetic
+    buildAdd,
+    buildSub,
+    buildMul,
+
+    -- ** Memory
+    buildMalloc,
+    buildArrayMalloc,
+    buildAlloca,
+    buildArrayAlloca,
+    buildFree,
+    buildLoad,
+    buildStore,
+    --buildGEP,
     )
 where
 
@@ -616,6 +661,68 @@ constFDiv :: Value -> Value -> Value
 constFDiv = binaryHelper L.constFDiv
 
 -- AHH SO MANY!!!!! I'll do the rest later...
+-- Basic Blocks
+
+basicBlockAsValue :: BasicBlock -> Value
+basicBlockAsValue (BasicBlock b) = Value $ L.basicBlockAsValue b
+
+valueIsBasicBlock :: Value -> Bool
+valueIsBasicBlock (Value v) = L.valueIsBasicBlock v
+
+valueAsBasicBlock :: Value -> BasicBlock
+valueAsBasicBlock (Value v) = BasicBlock $ L.valueAsBasicBlock v
+
+countBasicBlocks :: Value -- ^ Function
+                    -> LLVM Int
+countBasicBlocks (Value v) = LLVM $ fromIntegral <$> L.countBasicBlocks v
+
+getBasicBlocks :: Value -- ^ Function
+                  -> LLVM [BasicBlock]
+getBasicBlocks f'@(Value f) = do
+    n <- countBasicBlocks f'
+    LLVM $ do blockArray <- mallocArray n
+              L.getBasicBlocks f blockArray
+              blockList <- peekArray n blockArray
+              free blockArray
+              return $ map BasicBlock blockList
+
+getEntryBasicBlock :: Value -- ^ Function
+                      -> LLVM BasicBlock
+getEntryBasicBlock (Value v) = LLVM $ BasicBlock <$> L.getEntryBasicBlock v
+
+appendBasicBlock :: Value -- ^ Function
+                    -> String -- ^ Name for Label
+                    -> LLVM BasicBlock
+appendBasicBlock (Value v) name =
+    LLVM $ BasicBlock <$> withCString name (L.appendBasicBlock v)
+
+insertBasicBlock :: BasicBlock -- ^ Insert before this one
+                    -> String
+                    -> LLVM BasicBlock
+insertBasicBlock (BasicBlock b) name =
+    LLVM $ BasicBlock <$> withCString name (L.insertBasicBlock b)
+
+deleteBasicBlock :: BasicBlock -> LLVM ()
+deleteBasicBlock (BasicBlock b) = LLVM $ L.deleteBasicBlock b
+
+getFirstBasicBlock :: Value -> LLVM BasicBlock
+getFirstBasicBlock (Value v) = LLVM $ BasicBlock <$> L.getFirstBasicBlock v
+
+getLastBasicBlock :: Value -> LLVM BasicBlock
+getLastBasicBlock (Value v) = LLVM $ BasicBlock <$> L.getLastBasicBlock v
+
+getNextBasicBlock :: BasicBlock -> LLVM BasicBlock
+getNextBasicBlock (BasicBlock b) = LLVM $ BasicBlock <$> L.getNextBasicBlock b
+
+getPreviousBasicBlock :: BasicBlock -> LLVM BasicBlock
+getPreviousBasicBlock (BasicBlock b) = LLVM $ BasicBlock <$> L.getPreviousBasicBlock b
+
+getInsertBlock :: Builder -> LLVM BasicBlock
+getInsertBlock (Builder b) = LLVM $ BasicBlock <$> L.getInsertBlock b
+
+getBasicBlockParent :: BasicBlock -> LLVM Value
+getBasicBlockParent (BasicBlock b) = LLVM $ Value <$> L.getBasicBlockParent b
+
 -- BUILDER TIME! This stuff is actually important...
 
 createBuilder :: LLVM Builder
@@ -644,3 +751,75 @@ getPreviousInstruction (Value v) = LLVM $ Value <$> L.getPreviousInstruction v
 
 getInstructionParent :: Value -> LLVM BasicBlock
 getInstructionParent (Value v) = LLVM $ BasicBlock <$> L.getInstructionParent v
+
+-- Terminator Instructions
+buildRetVoid :: Builder -> LLVM Value
+buildRetVoid (Builder b) = LLVM $ Value <$> L.buildRetVoid b
+
+buildRet :: Builder -> Value -> LLVM Value
+buildRet (Builder b) (Value v) = LLVM $ Value <$> L.buildRet b v
+
+buildBr :: Builder -> BasicBlock -> LLVM Value
+buildBr (Builder builder) (BasicBlock block) = LLVM $ Value <$> L.buildBr builder block
+
+-- Commented out because I don't think its right
+--buildIndirectBr :: Builder -> Value -> Int -> LLVM Value
+--buildIndirectBr (Builder b) (Value v) i = LLVM $ Value <$> L.buildIndirectBr b v (fromIntegral i)
+
+buildCondBr :: Builder -> Value -> BasicBlock -> BasicBlock -> LLVM Value
+buildCondBr (Builder b) (Value v) (BasicBlock b1) (BasicBlock b2) =
+    LLVM $ Value <$> L.buildCondBr b v b1 b2
+
+-- Commented out becuase I don't think its right
+-- buildSwitch :: Builder -> Value -> BasicBlock -> 
+
+-- Commented out because I haven't implemented yet
+-- buildInvoke :: 
+
+buildUnwind :: Builder -> LLVM Value
+buildUnwind (Builder b) = LLVM $ Value <$> L.buildUnwind b
+
+buildUnreachable :: Builder -> LLVM Value
+buildUnreachable (Builder b) = LLVM $ Value <$> L.buildUnreachable b
+
+buildAdd :: Builder -> Value -> Value -> String -> LLVM Value
+buildAdd (Builder b) (Value v1) (Value v2) name =
+    LLVM $ Value <$> withCString name (L.buildAdd b v1 v2)
+
+buildSub :: Builder -> Value -> Value -> String -> LLVM Value
+buildSub (Builder b) (Value v1) (Value v2) name =
+    LLVM $ Value <$> withCString name (L.buildSub b v1 v2)
+
+buildMul :: Builder -> Value -> Value -> String -> LLVM Value
+buildMul (Builder b) (Value v1) (Value v2) name =
+    LLVM $ Value <$> withCString name (L.buildMul b v1 v2)
+
+-- SKIP SOME STUFF BECAUSE I WANT TO TEST WHAT I HAVE
+
+buildMalloc :: Builder -> Type -> String -> LLVM Value
+buildMalloc (Builder b) (Type t) name =
+    LLVM $ Value <$> withCString name (L.buildMalloc b t)
+
+buildArrayMalloc :: Builder -> Type -> Value -> String -> LLVM Value
+buildArrayMalloc (Builder b) (Type t) (Value v) name =
+    LLVM $ Value <$> withCString name (L.buildArrayMalloc b t v)
+
+buildAlloca :: Builder -> Type -> String -> LLVM Value
+buildAlloca (Builder b) (Type t) name =
+    LLVM $ Value <$> withCString name (L.buildAlloca b t)
+
+buildArrayAlloca :: Builder -> Type -> Value -> String -> LLVM Value
+buildArrayAlloca (Builder b) (Type t) (Value v) name =
+    LLVM $ Value <$> withCString name (L.buildArrayAlloca b t v)
+
+buildFree :: Builder -> Value -> LLVM Value
+buildFree (Builder b) (Value v) = LLVM $ Value <$> L.buildFree b v
+
+buildLoad :: Builder -> Value -> String -> LLVM Value
+buildLoad (Builder b) (Value v) name =
+    LLVM $ Value <$> withCString name (L.buildLoad b v)
+
+buildStore :: Builder -> Value -> Value -> LLVM Value
+buildStore (Builder b) (Value v1) (Value v2) = LLVM $ Value <$> L.buildStore b v1 v2
+
+-- I have no idea what buildGEP does
