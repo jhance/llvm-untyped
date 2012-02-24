@@ -3,6 +3,7 @@ module LLVM.Untyped.Core
     (
     -- * Core Monad
     LLVM,
+    runLLVM,
 
     -- * Modules
     Module,
@@ -145,6 +146,39 @@ module LLVM.Untyped.Core
     getInstructionCallConv,
     setInstructionCallConv,
 
+    -- * Constants
+    -- ** Scalar Constants
+    constInt,
+    constReal,
+
+    -- ** Constant Operations
+    LLVM.Untyped.Core.sizeOf,
+    constNeg,
+    constNot,
+    constAdd,
+    constSub,
+    constMul,
+    constExactSDiv,
+    constFAdd,
+    constFMul,
+    constFNeg,
+    constFPCast,
+    constFSub,
+    constUDiv,
+    constSDiv,
+    constFDiv,
+    constURem,
+    constSRem,
+    constFRem,
+    constAnd,
+    constOr,
+    constXor,
+    constICmp,
+    constFCmp,
+    constShl,
+    constLShr,
+    constAShr,
+
     -- * Basic Blocks
     BasicBlock,
     basicBlockAsValue,
@@ -200,19 +234,23 @@ module LLVM.Untyped.Core
     buildLoad,
     buildStore,
     --buildGEP,
+    
+    -- ** Bit Writer
+    writeBitcodeToFile
     )
 where
 
 import Control.Applicative
 import Data.Typeable (Typeable)
 import Foreign hiding (unsafePerformIO)
-import Foreign.C.String
+import Foreign.C.String hiding (withCString)
 import Foreign.C.Types
 import System.IO.Unsafe (unsafePerformIO)
+import qualified LLVM.FFI.BitWriter as L
 import LLVM.FFI.Core (CallingConvention, Linkage, Visibility)
 import qualified LLVM.FFI.Core as L
 
-newtype LLVM a = LLVM (IO a)
+newtype LLVM a = LLVM { runLLVM :: IO a }
     deriving (Applicative, Functor, Monad)
 
 newtype BasicBlock = BasicBlock L.BasicBlockRef
@@ -238,6 +276,14 @@ intToBool i = case i of
 boolToInt :: Bool -> CInt
 boolToInt True = 1
 boolToInt False = 0
+
+-- | withCString that doesn't free memory after, but rather uses a foreign ptr
+withCString :: String -> (CString -> IO a) -> IO a
+withCString s f = do cs <- newCAString s
+                     --csf <- newForeignPtr finalizerFree cs
+                     --withForeignPtr csf $ \cs' -> f cs
+                     f cs
+
 
 -- | Create a new module.
 moduleCreateWithName :: String -- ^ Name of module
@@ -313,16 +359,15 @@ ppcFP128Type = Type L.ppcFP128Type
 functionType :: Type -- ^ Return Type
                 -> [Type] -- ^ Argument Types
                 -> Bool -- ^ Is Var Arg?
-                -> Type
-functionType (Type retType) argTypes isVarArg = unsafePerformIO $ do
+                -> LLVM Type
+functionType (Type retType) argTypes isVarArg = LLVM $ do
     let argTypes' = map untype argTypes
         argCount = fromIntegral . length $ argTypes'
         isVarArg' = fromIntegral $ case isVarArg of
-            True -> 1 -- Is this right?
+            True -> 1
             False -> 0
-    resultRef <- withArray argTypes' $ \argTypesPtr -> return $
-        L.functionType retType argTypesPtr argCount isVarArg'
-    return $ Type resultRef
+    array <- newArray argTypes'
+    return . Type $ L.functionType retType array argCount isVarArg'
 
 -- Theoretically a lot of these don't need to be in the LLVM monad.
 -- Should experiment.
@@ -605,8 +650,10 @@ getInstructionCallConv (Value value) = LLVM $ L.toCallingConvention <$> L.getIns
 setInstructionCallConv :: Value -> CallingConvention -> LLVM ()
 setInstructionCallConv (Value value) cc = LLVM $ L.setInstructionCallConv value (L.fromCallingConvention cc)
 
-constInt :: Type -> Integer -> Int -> Value
-constInt (Type t) i1 i2 = Value $ L.constInt t (fromIntegral i1) (fromIntegral i2)
+-- Constants
+
+constInt :: Type -> Integer -> Bool -> Value
+constInt (Type t) i1 i2 = Value $ L.constInt t (fromIntegral i1) (boolToInt i2)
 
 constReal :: Type -> Double -> Value
 constReal (Type t) d = Value $ L.constReal t (realToFrac d)
@@ -642,6 +689,9 @@ constExactSDiv (Value v1) (Value v2) = LLVM $ Value <$> L.constExactSDiv v1 v2
 constFAdd :: Value -> Value -> Value
 constFAdd = binaryHelper L.constFAdd
 
+constFMul :: Value -> Value -> Value
+constFMul = binaryHelper L.constFMul
+
 constFNeg :: Value -> Value
 constFNeg (Value v) = Value $ L.constFNeg v
 
@@ -660,7 +710,42 @@ constSDiv = binaryHelper L.constSDiv
 constFDiv :: Value -> Value -> Value
 constFDiv = binaryHelper L.constFDiv
 
--- AHH SO MANY!!!!! I'll do the rest later...
+constURem :: Value -> Value -> Value
+constURem = binaryHelper L.constURem
+
+constSRem :: Value -> Value -> Value
+constSRem = binaryHelper L.constSRem
+
+constFRem :: Value -> Value -> Value
+constFRem = binaryHelper L.constFRem
+
+constAnd :: Value -> Value -> Value
+constAnd = binaryHelper L.constAnd
+
+constOr :: Value -> Value -> Value
+constOr = binaryHelper L.constOr
+
+constXor :: Value -> Value -> Value
+constXor = binaryHelper L.constXor
+
+constICmp :: Int -> Value -> Value -> Value
+constICmp i (Value v1) (Value v2) = Value $ L.constICmp (fromIntegral i) v1 v2
+
+constFCmp :: Int -> Value -> Value -> Value
+constFCmp i (Value v1) (Value v2) = Value $ L.constFCmp (fromIntegral i) v1 v2
+
+constShl :: Value -> Value -> Value
+constShl = binaryHelper L.constShl
+
+constLShr :: Value -> Value -> Value
+constLShr = binaryHelper L.constLShr
+
+constAShr :: Value -> Value -> Value
+constAShr = binaryHelper L.constAShr
+
+-- Again, don't even know what GEP Is.
+-- constGEP :: Value
+
 -- Basic Blocks
 
 basicBlockAsValue :: BasicBlock -> Value
@@ -823,3 +908,7 @@ buildStore :: Builder -> Value -> Value -> LLVM Value
 buildStore (Builder b) (Value v1) (Value v2) = LLVM $ Value <$> L.buildStore b v1 v2
 
 -- I have no idea what buildGEP does
+
+writeBitcodeToFile :: Module -> String -> IO Bool
+writeBitcodeToFile (Module m) name = 
+    intToBool <$> withCString name (L.writeBitcodeToFile m)

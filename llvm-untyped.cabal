@@ -43,7 +43,7 @@ Build-type:          Simple
 -- Extra-source-files:  
 
 -- Constraint on the version of Cabal needed to build this package.
-Cabal-version:       >=1.2
+Cabal-version:       >=1.8
 
 
 Library
@@ -60,3 +60,9 @@ Library
   -- Extra tools (e.g. alex, hsc2hs, ...) needed to build the source.
   -- Build-tools:         
   
+Executable llvm-untyped-test
+  Build-depends: base >= 4.4 && < 4.5,
+                 llvm-base >= 3.0 && < 3.1,
+                 llvm-untyped,
+                 process
+  Main-is: Main.hs
