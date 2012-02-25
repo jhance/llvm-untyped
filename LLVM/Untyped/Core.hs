@@ -29,6 +29,7 @@ module LLVM.Untyped.Core
     int8Type,
     int16Type,
     int32Type,
+    int64Type,
     integerType,
     getIntTypeWidth,
     
@@ -224,6 +225,33 @@ module LLVM.Untyped.Core
     buildAdd,
     buildSub,
     buildMul,
+    buildFAdd,
+    buildFMul,
+    buildFPCast,
+    buildFSub,
+    buildUDiv,
+    buildSDiv,
+    buildExactSDiv,
+    buildFDiv,
+    buildURem,
+    buildSRem,
+    buildFRem,
+    buildShl,
+    buildLShr,
+    buildAShr,
+    buildAnd,
+    buildOr,
+    buildXor,
+    buildNeg,
+    buildFNeg,
+    buildNot,
+    buildNSWMul,
+    buildNSWNeg,
+    buildNSWSub,
+    buildNUWAdd,
+    buildNUWMul,
+    buildNUWNeg,
+    buildNUWSub,
 
     -- ** Memory
     buildMalloc,
@@ -234,6 +262,12 @@ module LLVM.Untyped.Core
     buildLoad,
     buildStore,
     --buildGEP,
+
+    -- ** Comparison
+    IntComparison(..),
+    RealComparison(..),
+    buildICmp,
+    buildFCmp,
     
     -- ** Bit Writer
     writeBitcodeToFile
@@ -267,6 +301,36 @@ newtype Type = Type { untype :: L.TypeRef }
 newtype TypeHandle = TypeHandle L.TypeHandleRef
 
 newtype Value = Value { unvalue :: L.ValueRef }
+
+data IntComparison =
+    IntEQ
+    | IntNE
+    | IntUGT
+    | IntUGE
+    | IntULT
+    | IntULE
+    | IntSGT
+    | IntSGE
+    | IntSLT
+    | IntSLE
+
+data RealComparison =
+    RealPredicateFalse
+    | RealOEQ
+    | RealOGT
+    | RealOGE
+    | RealOLT
+    | RealOLE
+    | RealONE
+    | RealORD
+    | RealUNO
+    | RealUEQ
+    | RealUGT
+    | RealUGE
+    | RealULT
+    | RealULE
+    | RealUNE
+    | RealPredicateTrue
 
 intToBool :: CInt -> Bool
 intToBool i = case i of
@@ -331,6 +395,9 @@ int16Type = Type L.int16Type
 
 int32Type :: Type
 int32Type = Type L.int32Type
+
+int64Type :: Type
+int64Type = Type L.int64Type
 
 integerType :: Int -- ^ Width in bits
                -> Type
@@ -429,6 +496,7 @@ getPointerAddressSpace (Type typeRef) = LLVM $ fromIntegral <$> L.getPointerAddr
 getVectorSize :: Type -> LLVM Int
 getVectorSize (Type typeRef) = LLVM $ fromIntegral <$> L.getVectorSize typeRef
 
+-- | This implementation is wrong. Don't use. Ever.
 structType :: [Type] -- ^ List of Types that the struct contains
               -> Bool -- ^ Is the struct packed?
               -> Type
@@ -867,19 +935,110 @@ buildUnwind (Builder b) = LLVM $ Value <$> L.buildUnwind b
 buildUnreachable :: Builder -> LLVM Value
 buildUnreachable (Builder b) = LLVM $ Value <$> L.buildUnreachable b
 
+-- Arithmetic Ops
+
+arithHelper :: (L.BuilderRef -> L.ValueRef -> L.ValueRef -> CString -> IO L.ValueRef)
+                 -> Builder -> Value -> Value -> String -> LLVM Value
+arithHelper f (Builder b) (Value v1) (Value v2) s =
+    LLVM $ Value <$> withCString s (f b v1 v2)
+
+arithuHelper :: (L.BuilderRef -> L.ValueRef -> CString -> IO L.ValueRef)
+                -> Builder -> Value -> String -> LLVM Value
+arithuHelper f (Builder b) (Value v) s =
+    LLVM $ Value <$> withCString s (f b v)
+
 buildAdd :: Builder -> Value -> Value -> String -> LLVM Value
-buildAdd (Builder b) (Value v1) (Value v2) name =
-    LLVM $ Value <$> withCString name (L.buildAdd b v1 v2)
+buildAdd = arithHelper L.buildAdd
 
 buildSub :: Builder -> Value -> Value -> String -> LLVM Value
-buildSub (Builder b) (Value v1) (Value v2) name =
-    LLVM $ Value <$> withCString name (L.buildSub b v1 v2)
+buildSub = arithHelper L.buildSub
 
 buildMul :: Builder -> Value -> Value -> String -> LLVM Value
-buildMul (Builder b) (Value v1) (Value v2) name =
-    LLVM $ Value <$> withCString name (L.buildMul b v1 v2)
+buildMul = arithHelper L.buildMul
 
--- SKIP SOME STUFF BECAUSE I WANT TO TEST WHAT I HAVE
+buildFAdd :: Builder -> Value -> Value -> String -> LLVM Value
+buildFAdd = arithHelper L.buildFAdd
+
+buildFMul :: Builder -> Value -> Value -> String -> LLVM Value
+buildFMul = arithHelper L.buildFMul
+
+buildFPCast :: Builder -> Value -> Type -> String -> LLVM Value
+buildFPCast (Builder b) (Value v) (Type t) s =
+    LLVM $ Value <$> withCString s (L.buildFPCast b v t)
+
+buildFSub :: Builder -> Value -> Value -> String -> LLVM Value
+buildFSub = arithHelper L.buildFSub
+
+buildUDiv :: Builder -> Value -> Value -> String -> LLVM Value
+buildUDiv = arithHelper L.buildUDiv
+
+buildSDiv :: Builder -> Value -> Value -> String -> LLVM Value
+buildSDiv = arithHelper L.buildSDiv
+
+buildExactSDiv :: Builder -> Value -> Value -> String -> LLVM Value
+buildExactSDiv = arithHelper L.buildExactSDiv
+
+buildFDiv :: Builder -> Value -> Value -> String -> LLVM Value
+buildFDiv = arithHelper L.buildFDiv
+
+buildURem :: Builder -> Value -> Value -> String -> LLVM Value
+buildURem = arithHelper L.buildURem
+
+buildSRem :: Builder -> Value -> Value -> String -> LLVM Value
+buildSRem = arithHelper L.buildSRem
+
+buildFRem :: Builder -> Value -> Value -> String -> LLVM Value
+buildFRem = arithHelper L.buildFRem
+
+buildShl :: Builder -> Value -> Value -> String -> LLVM Value
+buildShl = arithHelper L.buildShl
+
+buildLShr :: Builder -> Value -> Value -> String -> LLVM Value
+buildLShr = arithHelper L.buildLShr
+
+buildAShr :: Builder -> Value -> Value -> String -> LLVM Value
+buildAShr = arithHelper L.buildAShr
+
+buildAnd :: Builder -> Value -> Value -> String -> LLVM Value
+buildAnd = arithHelper L.buildAnd
+
+buildOr :: Builder -> Value -> Value -> String -> LLVM Value
+buildOr = arithHelper L.buildOr
+
+buildXor :: Builder -> Value -> Value -> String -> LLVM Value
+buildXor = arithHelper L.buildXor
+
+buildNeg :: Builder -> Value -> String -> LLVM Value
+buildNeg = arithuHelper L.buildNeg
+
+buildFNeg :: Builder -> Value -> String -> LLVM Value
+buildFNeg = arithuHelper L.buildFNeg
+
+buildNot :: Builder -> Value -> String -> LLVM Value
+buildNot = arithuHelper L.buildNot
+
+buildNSWMul :: Builder -> Value -> Value -> String -> LLVM Value
+buildNSWMul = arithHelper L.buildNSWMul
+
+buildNSWNeg :: Builder -> Value -> String -> LLVM Value
+buildNSWNeg = arithuHelper L.buildNSWNeg
+
+buildNSWSub :: Builder -> Value -> Value -> String -> LLVM Value
+buildNSWSub = arithHelper L.buildNSWSub
+
+buildNUWAdd :: Builder -> Value -> Value -> String -> LLVM Value
+buildNUWAdd = arithHelper L.buildNUWAdd
+
+buildNUWMul :: Builder -> Value -> Value -> String -> LLVM Value
+buildNUWMul = arithHelper L.buildNUWMul
+
+buildNUWNeg :: Builder -> Value -> String -> LLVM Value
+buildNUWNeg = arithuHelper L.buildNUWNeg
+
+buildNUWSub :: Builder -> Value -> Value -> String -> LLVM Value
+buildNUWSub = arithHelper L.buildNUWSub
+
+-- Memory Allocation Operations
 
 buildMalloc :: Builder -> Type -> String -> LLVM Value
 buildMalloc (Builder b) (Type t) name =
@@ -908,6 +1067,72 @@ buildStore :: Builder -> Value -> Value -> LLVM Value
 buildStore (Builder b) (Value v1) (Value v2) = LLVM $ Value <$> L.buildStore b v1 v2
 
 -- I have no idea what buildGEP does
+
+-- Casts
+castHelper :: (L.BuilderRef 
+               -> L.ValueRef 
+               -> L.TypeRef 
+               -> CString
+               -> IO L.ValueRef)
+              -> Builder
+              -> Value
+              -> Type
+              -> String
+              -> LLVM Value
+castHelper f (Builder b) (Value v) (Type t) s =
+    LLVM $ Value <$> withCString s (f b v t)
+
+buildTrunc :: Builder -> Value -> Type -> String -> LLVM Value
+buildTrunc = castHelper L.buildTrunc
+
+buildZExt :: Builder -> Value -> Type -> String -> LLVM Value
+buildZExt = castHelper L.buildZExt
+
+-- More Casts to do
+
+-- Comparisons
+
+convertIntCmp :: IntComparison -> CInt
+convertIntCmp cmp = fromIntegral $ case cmp of
+    IntEQ -> 32
+    IntNE -> 33
+    IntUGT -> 34
+    IntUGE -> 36
+    IntULT -> 37
+    IntULE -> 38
+    IntSGT -> 39
+    IntSGE -> 40
+    IntSLT -> 41
+    IntSLE -> 42
+
+convertRealCmp :: RealComparison -> CInt
+convertRealCmp cmp = fromIntegral $ case cmp of
+    RealPredicateFalse -> 0
+    RealOEQ -> 1
+    RealOGT -> 2
+    RealOGE -> 3
+    RealOLT -> 4
+    RealOLE -> 5
+    RealONE -> 6
+    RealORD -> 7
+    RealUNO -> 8
+    RealUEQ -> 9
+    RealUGT -> 10
+    RealUGE -> 11
+    RealULT -> 12
+    RealULE -> 13
+    RealUNE -> 14
+    RealPredicateTrue -> 15
+
+buildICmp :: Builder -> IntComparison -> Value -> Value -> String -> LLVM Value
+buildICmp (Builder b) c (Value v1) (Value v2) name =
+    LLVM $ Value <$> withCString name (L.buildICmp b (convertIntCmp c) v1 v2)
+
+buildFCmp :: Builder -> RealComparison -> Value -> Value -> String -> LLVM Value
+buildFCmp (Builder b) c (Value v1) (Value v2) name =
+    LLVM $ Value <$> withCString name (L.buildFCmp b (convertRealCmp c) v1 v2)
+
+-- Utils
 
 writeBitcodeToFile :: Module -> String -> IO Bool
 writeBitcodeToFile (Module m) name = 
