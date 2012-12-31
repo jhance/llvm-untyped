@@ -10,7 +10,7 @@ Name:                llvm-untyped
 Version:             0.1
 
 -- A short (one-line) description of the package.
-Synopsis:            A happy medium between llvm and llvm-based
+Synopsis:            A happy medium between llvm and llvm-base
 Description: An interface to llvm-base which should not use the IO monad
     nor should it require use of the Foreign, but with the same typelessness
     as llvm-base. Useful for compiler code generator, etc.
